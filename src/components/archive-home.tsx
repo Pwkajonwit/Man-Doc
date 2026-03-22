@@ -7,13 +7,20 @@ import { ArchiveHomeCard } from "@/components/archive-home-card";
 import { ArchiveSearchInput } from "@/components/archive-search-input";
 import { ArchiveShell } from "@/components/archive-shell";
 import { CreateCabinetForm } from "@/components/create-cabinet-form";
+import { DataSourceBanner } from "@/components/data-source-banner";
 import { ActionButton } from "@/components/ui/action-button";
 import { buildFileMeta, getFolderProfile } from "@/lib/archive-config";
-import type { DashboardData, FolderSummary } from "@/lib/document-types";
+import type {
+  DashboardData,
+  DashboardSource,
+  FolderSummary,
+} from "@/lib/document-types";
 
 type ArchiveHomeProps = {
   initialData: DashboardData;
   gasConfigured: boolean;
+  dataSource: DashboardSource;
+  dataErrorMessage?: string;
   searchQuery?: string;
 };
 
@@ -22,6 +29,8 @@ const FOLDER_ORDER_STORAGE_KEY = "archive-folder-order";
 export function ArchiveHome({
   initialData,
   gasConfigured,
+  dataSource,
+  dataErrorMessage,
   searchQuery = "",
 }: ArchiveHomeProps) {
   const [folders, setFolders] = useState(initialData.folders);
@@ -131,6 +140,12 @@ export function ArchiveHome({
 
   return (
     <ArchiveShell active="documents">
+      <DataSourceBanner
+        gasConfigured={gasConfigured}
+        source={dataSource}
+        errorMessage={dataErrorMessage}
+      />
+
       <section className="border-b border-[var(--line)] bg-[#edf1f4]">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">

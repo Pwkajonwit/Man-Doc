@@ -1,5 +1,7 @@
 import { ArchiveHome } from "@/components/archive-home";
-import { getDashboardData, hasGasConfig } from "@/lib/dashboard-data";
+import { getDashboardState } from "@/lib/dashboard-data";
+
+export const dynamic = "force-dynamic";
 
 type SearchQueryParams = {
   q?: string;
@@ -10,14 +12,16 @@ type HomePageProps = {
 };
 
 export default async function Home({ searchParams }: HomePageProps) {
-  const data = await getDashboardData();
+  const dashboard = await getDashboardState();
   const params = await Promise.resolve(searchParams ?? {});
   const query = typeof params.q === "string" ? params.q : "";
 
   return (
     <ArchiveHome
-      initialData={data}
-      gasConfigured={hasGasConfig()}
+      initialData={dashboard.data}
+      gasConfigured={dashboard.gasConfigured}
+      dataSource={dashboard.source}
+      dataErrorMessage={dashboard.errorMessage}
       searchQuery={query}
     />
   );

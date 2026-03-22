@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const action = getValue(formData.get("action"));
+    const gasConfigured = await hasGasConfig();
 
     if (action === "create-folder") {
       const folderName = getValue(formData.get("folderName")).trim();
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (hasGasConfig()) {
+      if (gasConfigured) {
         const result = await postToGas({
           action: "create-folder",
           folderName,
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (hasGasConfig()) {
+      if (gasConfigured) {
         const result = await postToGas({
           action: "update-folder",
           folderId,
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (hasGasConfig()) {
+      if (gasConfigured) {
         const base64 = Buffer.from(await upload.arrayBuffer()).toString("base64");
         const result = await postToGas({
           action: "upload-file",
@@ -187,7 +188,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "ไม่พบรหัสไฟล์" }, { status: 400 });
       }
 
-      if (hasGasConfig()) {
+      if (gasConfigured) {
         const result = await postToGas({
           action: "delete-file",
           fileId,
@@ -214,7 +215,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (hasGasConfig()) {
+      if (gasConfigured) {
         const result = await postToGas({
           action: "delete-folder",
           folderId,

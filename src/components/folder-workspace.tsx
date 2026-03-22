@@ -6,18 +6,25 @@ import { useMemo, useState } from "react";
 import { ArchiveShell } from "@/components/archive-shell";
 import { EditCabinetForm } from "@/components/edit-cabinet-form";
 import { PlusIcon } from "@/components/archive-icons";
+import { DataSourceBanner } from "@/components/data-source-banner";
 import { FolderFileRow } from "@/components/folder-file-row";
 import { FolderPreviewPanel } from "@/components/folder-preview-panel";
 import { FolderUploadForm } from "@/components/folder-upload-form";
 import { ActionButton } from "@/components/ui/action-button";
 import { buildFileMeta, getFolderProfile } from "@/lib/archive-config";
-import type { DocumentFile, FolderSummary } from "@/lib/document-types";
+import type {
+  DashboardSource,
+  DocumentFile,
+  FolderSummary,
+} from "@/lib/document-types";
 import { formatReadableDate } from "@/lib/document-utils";
 
 type FolderWorkspaceProps = {
   folder: FolderSummary;
   files: DocumentFile[];
   gasConfigured: boolean;
+  dataSource: DashboardSource;
+  dataErrorMessage?: string;
   searchQuery?: string;
   initialSelectedFileId?: string;
 };
@@ -26,6 +33,8 @@ export function FolderWorkspace({
   folder,
   files: initialFiles,
   gasConfigured,
+  dataSource,
+  dataErrorMessage,
   searchQuery = "",
   initialSelectedFileId = "",
 }: FolderWorkspaceProps) {
@@ -336,6 +345,12 @@ export function FolderWorkspace({
 
   return (
     <ArchiveShell active="documents">
+      <DataSourceBanner
+        gasConfigured={gasConfigured}
+        source={dataSource}
+        errorMessage={dataErrorMessage}
+      />
+
       <div className="mx-auto grid max-w-7xl gap-0 xl:grid-cols-[1fr_26rem]">
         <section className="border-r border-[var(--line)] bg-white">
           <div className="border-b border-[var(--line)] px-4 py-6 sm:px-6">

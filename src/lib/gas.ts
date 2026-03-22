@@ -7,15 +7,16 @@ import type {
   FolderSummary,
 } from "@/lib/document-types";
 import { createUploadedBy, formatBytes } from "@/lib/document-utils";
-
-const gasWebAppUrl = process.env.GAS_WEB_APP_URL;
+import { getConfiguredGasWebAppUrl } from "@/lib/gas-config";
 export const DASHBOARD_CACHE_TAG = "dashboard-data";
 
-export function hasGasConfig() {
-  return Boolean(gasWebAppUrl);
+export async function hasGasConfig() {
+  return Boolean(await getConfiguredGasWebAppUrl());
 }
 
 export async function fetchDashboardFromGas() {
+  const gasWebAppUrl = await getConfiguredGasWebAppUrl();
+
   if (!gasWebAppUrl) {
     return null;
   }
@@ -78,6 +79,8 @@ type GasPostPayload =
     };
 
 export async function postToGas(payload: GasPostPayload) {
+  const gasWebAppUrl = await getConfiguredGasWebAppUrl();
+
   if (!gasWebAppUrl) {
     throw new Error("ยังไม่ได้ตั้งค่า GAS_WEB_APP_URL");
   }

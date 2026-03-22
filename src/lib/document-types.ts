@@ -47,6 +47,15 @@ export type DashboardData = {
   files: DocumentFile[];
 };
 
+export type DashboardSource = "mock" | "gas";
+
+export type DashboardLoadState = {
+  data: DashboardData;
+  gasConfigured: boolean;
+  source: DashboardSource;
+  errorMessage?: string;
+};
+
 export type DocumentActionResult = {
   mode: "mock" | "gas";
   message: string;

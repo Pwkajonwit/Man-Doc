@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { FolderWorkspace } from "@/components/folder-workspace";
-import { getDashboardData, hasGasConfig } from "@/lib/dashboard-data";
+import { getDashboardState } from "@/lib/dashboard-data";
 import { getFilesForFolder } from "@/lib/archive-config";
+
+export const dynamic = "force-dynamic";
 
 type SearchQueryParams = {
   q?: string;
@@ -18,20 +20,22 @@ type FolderPageProps = {
 export default async function FolderPage({ params, searchParams }: FolderPageProps) {
   const { folderId } = await params;
   const queryParams = await Promise.resolve(searchParams ?? {});
-  const data = await getDashboardData();
-  const folder = data.folders.find((item) => item.id === folderId);
+  const dashboard = await getDashboardState();
+  const folder = dashboard.data.folders.find((item) => item.id === folderId);
 
   if (!folder) {
     notFound();
   }
 
-  const files = getFilesForFolder(data.files, folderId);
+  const files = getFilesForFolder(dashboard.data.files, folderId);
 
   return (
     <FolderWorkspace
       folder={folder}
       files={files}
-      gasConfigured={hasGasConfig()}
+      gasConfigured={dashboard.gasConfigured}
+      dataSource={dashboard.source}
+      dataErrorMessage={dashboard.errorMessage}
       searchQuery={typeof queryParams.q === "string" ? queryParams.q : ""}
       initialSelectedFileId={
         typeof queryParams.fileId === "string" ? queryParams.fileId : ""
