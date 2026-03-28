@@ -13,8 +13,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ระบบจัดเก็บเอกสาร MAN",
-  description: "ระบบจัดเก็บเอกสารด้วย Next.js, Tailwind และ Google Apps Script",
+  title: "ระบบจัดเก็บเอกสาร",
+  description: "ระบบจัดเก็บเอกสารสำหรับองค์กร",
 };
 
 export default function RootLayout({

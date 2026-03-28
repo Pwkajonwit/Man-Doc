@@ -76,6 +76,11 @@ type GasPostPayload =
         size: number;
         base64: string;
       };
+    }
+  | {
+      action: "set-setting";
+      key: string;
+      value: string;
     };
 
 export async function postToGas(payload: GasPostPayload) {
@@ -100,6 +105,34 @@ export async function postToGas(payload: GasPostPayload) {
   }
 
   return normalizeActionPayload(await response.json());
+}
+
+export async function fetchSettingFromGas(key: string) {
+  const gasWebAppUrl = await getConfiguredGasWebAppUrl();
+
+  if (!gasWebAppUrl || !key) {
+    return "";
+  }
+
+  const response = await fetch(`${gasWebAppUrl}?action=settings`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`ดึงค่าการตั้งค่าจาก GAS ไม่สำเร็จ (${response.status})`);
+  }
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  const source = unwrapPayload(payload);
+  const candidate =
+    source && typeof source[key] === "object" && source[key]
+      ? (source[key] as Record<string, unknown>)
+      : null;
+
+  return candidate ? pickString(candidate.value, "") : "";
 }
 
 function normalizeDashboardPayload(raw: unknown): DashboardData | null {

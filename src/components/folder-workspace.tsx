@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArchiveShell } from "@/components/archive-shell";
 import { EditCabinetForm } from "@/components/edit-cabinet-form";
 import { PlusIcon } from "@/components/archive-icons";
@@ -12,6 +12,12 @@ import { FolderPreviewPanel } from "@/components/folder-preview-panel";
 import { FolderUploadForm } from "@/components/folder-upload-form";
 import { ActionButton } from "@/components/ui/action-button";
 import { buildFileMeta, getFolderProfile } from "@/lib/archive-config";
+import {
+  getDocumentOrderStorageKey,
+  orderFilesByDocumentOrder,
+  parseDocumentOrder,
+  serializeDocumentOrder,
+} from "@/lib/document-order";
 import type {
   DashboardSource,
   DocumentFile,
@@ -48,9 +54,13 @@ export function FolderWorkspace({
   const [showFolderEditor, setShowFolderEditor] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [dropTargetFileId, setDropTargetFileId] = useState<string | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const folderProfile = getFolderProfile(folderState);
   const query = String(searchQuery).trim().toLowerCase();
+  const canReorderFiles = query.length === 0 && files.length > 1;
   const visibleFiles = query
     ? files.filter((file, index) => {
         const meta = buildFileMeta(file, index);
@@ -64,6 +74,18 @@ export function FolderWorkspace({
   const activeFile =
     visibleFiles.find((file) => file.id === selectedFileId) ?? visibleFiles[0] ?? null;
   const activeMeta = activeFile ? buildFileMeta(activeFile) : null;
+
+  useEffect(() => {
+    const storageKey = getDocumentOrderStorageKey(folder.id);
+    const savedOrder = window.localStorage.getItem(storageKey);
+
+    if (!savedOrder) {
+      setFiles(initialFiles);
+      return;
+    }
+
+    setFiles(orderFilesByDocumentOrder(initialFiles, parseDocumentOrder(savedOrder)));
+  }, [folder.id, initialFiles]);
 
   const printableSummary = useMemo(() => {
     if (!activeFile || !activeMeta) {
@@ -191,10 +213,12 @@ export function FolderWorkspace({
       openImagePrintWindow(activeFile);
       return;
     }
+
     if (activeFile?.previewUrl && supportsBrowserPreviewPrint(activeFile)) {
       openPdfPrintWindow(activeFile);
       return;
     }
+
     if (!printableSummary) return;
     openPrintWindow(printableSummary);
   }
@@ -206,6 +230,7 @@ export function FolderWorkspace({
       openImagePrintWindow(file);
       return;
     }
+
     if (file.previewUrl && supportsBrowserPreviewPrint(file)) {
       openPdfPrintWindow(file);
       return;
@@ -258,6 +283,70 @@ export function FolderWorkspace({
     URL.revokeObjectURL(url);
   }
 
+  function saveOrderToLocalStorage(nextFiles: DocumentFile[]) {
+    window.localStorage.setItem(
+      getDocumentOrderStorageKey(folderState.id),
+      serializeDocumentOrder(nextFiles),
+    );
+  }
+
+  async function persistFileOrder(nextFiles: DocumentFile[]) {
+    saveOrderToLocalStorage(nextFiles);
+
+    if (!gasConfigured) {
+      return;
+    }
+
+    setIsSavingOrder(true);
+
+    try {
+      await fetch("/api/settings/file-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          folderId: folderState.id,
+          orderedFileIds: nextFiles.map((file) => file.id),
+        }),
+      });
+    } catch {
+      // Keep the local order even if syncing back to GAS fails.
+    } finally {
+      setIsSavingOrder(false);
+    }
+  }
+
+  function moveFileBefore(sourceFileId: string, targetFileId: string) {
+    let nextFiles: DocumentFile[] | null = null;
+
+    setFiles((current) => {
+      if (sourceFileId === targetFileId) {
+        return current;
+      }
+
+      const sourceIndex = current.findIndex((file) => file.id === sourceFileId);
+      const targetIndex = current.findIndex((file) => file.id === targetFileId);
+
+      if (sourceIndex === -1 || targetIndex === -1) {
+        return current;
+      }
+
+      const reordered = [...current];
+      const [movedFile] = reordered.splice(sourceIndex, 1);
+      const adjustedTargetIndex = reordered.findIndex((file) => file.id === targetFileId);
+
+      reordered.splice(adjustedTargetIndex, 0, movedFile);
+      nextFiles = reordered;
+
+      return reordered;
+    });
+
+    if (nextFiles) {
+      void persistFileOrder(nextFiles);
+    }
+  }
+
   async function handleDeleteFile(file: DocumentFile) {
     const confirmed = window.confirm(`ต้องการลบ "${file.name}" และย้ายไปถังขยะหรือไม่?`);
 
@@ -281,15 +370,23 @@ export function FolderWorkspace({
         return;
       }
 
+      let nextFiles: DocumentFile[] = [];
+
       setFiles((current) => {
-        const updated = current.filter((item) => item.id !== file.id);
+        nextFiles = current.filter((item) => item.id !== file.id);
 
         if (selectedFileId === file.id) {
-          setSelectedFileId(updated[0]?.id ?? "");
+          setSelectedFileId(nextFiles[0]?.id ?? "");
         }
 
-        return updated;
+        return nextFiles;
       });
+
+      if (nextFiles.length > 0) {
+        void persistFileOrder(nextFiles);
+      } else {
+        window.localStorage.removeItem(getDocumentOrderStorageKey(folderState.id));
+      }
     } finally {
       setDeletingFileId(null);
     }
@@ -388,13 +485,21 @@ export function FolderWorkspace({
               folderName={folderState.name}
               gasConfigured={gasConfigured}
               onUploaded={(file) => {
-                setFiles((current) => [
-                  {
-                    ...file,
-                    folderName: folderState.name,
-                  },
-                  ...current,
-                ]);
+                let nextFiles: DocumentFile[] = [];
+
+                setFiles((current) => {
+                  nextFiles = [
+                    {
+                      ...file,
+                      folderName: folderState.name,
+                    },
+                    ...current,
+                  ];
+
+                  return nextFiles;
+                });
+
+                void persistFileOrder(nextFiles);
                 setSelectedFileId(file.id);
               }}
               onClose={() => setShowUpload(false)}
@@ -407,6 +512,13 @@ export function FolderWorkspace({
             <div>ขนาดไฟล์</div>
             <div>การทำงาน</div>
           </div>
+
+          {canReorderFiles ? (
+            <div className="border-b border-[var(--line)] bg-white px-4 py-2 text-xs text-slate-500 sm:px-6">
+              ลากปุ่มจัดเรียงในคอลัมน์การทำงานเพื่อจัดเรียงลำดับใหม่
+              {isSavingOrder ? " กำลังบันทึกลำดับ..." : ""}
+            </div>
+          ) : null}
 
           <div className="px-3 py-3 sm:px-4">
             {visibleFiles.length === 0 ? (
@@ -422,12 +534,36 @@ export function FolderWorkspace({
                     index={index}
                     active={file.id === activeFile?.id}
                     deleting={deletingFileId === file.id}
+                    draggable={canReorderFiles}
+                    dragging={draggedFileId === file.id}
+                    dropTarget={dropTargetFileId === file.id && draggedFileId !== file.id}
                     onSelect={() => setSelectedFileId(file.id)}
                     onPrint={() => {
                       setSelectedFileId(file.id);
                       handlePrintFile(file, index);
                     }}
                     onDelete={() => void handleDeleteFile(file)}
+                    onDragStart={() => {
+                      setDraggedFileId(file.id);
+                      setDropTargetFileId(file.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedFileId(null);
+                      setDropTargetFileId(null);
+                    }}
+                    onDragOver={() => {
+                      if (draggedFileId && draggedFileId !== file.id) {
+                        setDropTargetFileId(file.id);
+                      }
+                    }}
+                    onDrop={() => {
+                      if (draggedFileId) {
+                        moveFileBefore(draggedFileId, file.id);
+                      }
+
+                      setDraggedFileId(null);
+                      setDropTargetFileId(null);
+                    }}
                   />
                 ))}
               </div>

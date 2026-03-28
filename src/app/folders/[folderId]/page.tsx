@@ -2,6 +2,12 @@ import { notFound } from "next/navigation";
 import { FolderWorkspace } from "@/components/folder-workspace";
 import { getDashboardState } from "@/lib/dashboard-data";
 import { getFilesForFolder } from "@/lib/archive-config";
+import {
+  getDocumentOrderSettingKey,
+  orderFilesByDocumentOrder,
+  parseDocumentOrder,
+} from "@/lib/document-order";
+import { fetchSettingFromGas } from "@/lib/gas";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +33,16 @@ export default async function FolderPage({ params, searchParams }: FolderPagePro
     notFound();
   }
 
-  const files = getFilesForFolder(dashboard.data.files, folderId);
+  let files = getFilesForFolder(dashboard.data.files, folderId);
+
+  if (dashboard.gasConfigured && dashboard.source === "gas") {
+    try {
+      const savedOrder = await fetchSettingFromGas(getDocumentOrderSettingKey(folderId));
+      files = orderFilesByDocumentOrder(files, parseDocumentOrder(savedOrder));
+    } catch {
+      // Fall back to the default uploadedAt ordering when the setting cannot be read.
+    }
+  }
 
   return (
     <FolderWorkspace
